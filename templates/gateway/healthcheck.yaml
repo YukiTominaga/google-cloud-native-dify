@@ -1,0 +1,67 @@
+apiVersion: networking.gke.io/v1
+kind: HealthCheckPolicy
+metadata:
+  name: {{ include "dify.fullname" . }}-api-healthcheck
+  namespace: {{ .Release.Namespace }}
+spec:
+  default:
+    checkIntervalSec: 30
+    timeoutSec: 10
+    healthyThreshold: 2
+    unhealthyThreshold: 2
+    logConfig:
+      enabled: false
+    config:
+      type: HTTP
+      httpHealthCheck:
+        port: 5001
+        requestPath: /health
+  targetRef:
+    group: ''
+    kind: Service
+    name: {{ include "dify.fullname" . }}-api
+---
+apiVersion: networking.gke.io/v1
+kind: HealthCheckPolicy
+metadata:
+  name: {{ include "dify.fullname" . }}-web-healthcheck
+  namespace: {{ .Release.Namespace }}
+spec:
+  default:
+    checkIntervalSec: 30
+    timeoutSec: 10
+    healthyThreshold: 2
+    unhealthyThreshold: 2
+    logConfig:
+      enabled: false
+    config:
+      type: HTTP
+      httpHealthCheck:
+        port: 3000
+        requestPath: /apps
+  targetRef:
+    group: ''
+    kind: Service
+    name: {{ include "dify.fullname" . }}-web
+---
+apiVersion: networking.gke.io/v1
+kind: HealthCheckPolicy
+metadata:
+  name: {{ include "dify.fullname" . }}-plugin-daemon-healthcheck
+  namespace: {{ .Release.Namespace }}
+spec:
+  default:
+    checkIntervalSec: 30
+    timeoutSec: 10
+    healthyThreshold: 2
+    unhealthyThreshold: 2
+    logConfig:
+      enabled: false
+    config:
+      type: TCP
+      tcpHealthCheck:
+        port: 5002
+  targetRef:
+    group: ''
+    kind: Service
+    name: {{ include "dify.fullname" . }}-plugin-daemon

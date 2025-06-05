@@ -1,0 +1,12 @@
+apiVersion: networking.gke.io/v1
+kind: GCPGatewayPolicy
+metadata:
+  name: {{ include "dify.fullname" . }}-gateway-policy
+  namespace: {{ .Release.Namespace }}
+spec:
+  default:
+    sslPolicy: {{ .Values.gateway.sslPolicy }}
+  targetRef:
+    group: gateway.networking.k8s.io
+    kind: Gateway
+    name: {{ include "dify.fullname" . }}-gateway

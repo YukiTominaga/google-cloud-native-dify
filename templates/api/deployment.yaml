@@ -1,0 +1,131 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "dify.fullname" . }}-api
+  namespace: {{ .Release.Namespace }}
+  labels:
+    app.kubernetes.io/component: api
+spec:
+  replicas: {{ .Values.api.replicas }}
+  selector:
+    matchLabels:
+      app.kubernetes.io/component: api
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/component: api
+      annotations:
+        gke-gcsfuse/volumes: 'true'
+        gke-gcsfuse/ephemeral-storage-limit: '1Gi'
+    spec:
+      affinity:
+        {{- toYaml .Values.affinity | nindent 8 }}
+      serviceAccountName: {{ include "dify.serviceAccountName" . }}
+      securityContext:
+        {{- toYaml .Values.podSecurityContext | nindent 8 }}
+      containers:
+      - name: api
+        image: "{{ .Values.api.image.repository }}:{{ .Values.api.image.tag }}"
+        imagePullPolicy: {{ .Values.api.image.pullPolicy }}
+        ports:
+        - name: http
+          containerPort: {{ .Values.api.containerPort }}
+          protocol: TCP
+        securityContext:
+          runAsNonRoot: true
+        resources:
+          {{- toYaml .Values.api.resources | nindent 10 }}
+        livenessProbe:
+          {{- toYaml .Values.api.livenessProbe | nindent 10 }}
+        readinessProbe:
+          {{- toYaml .Values.api.readinessProbe | nindent 10 }}
+        lifecycle:
+          preStop:
+            exec:
+              command:
+              - /bin/sh
+              - -c
+              - "sleep 15"
+        env:
+        - name: MODE
+          value: api
+        {{- include "dify.commonEnvs" . | nindent 8 }}
+        {{- range $key, $value := .Values.config }}
+        - name: {{ $key }}
+          value: {{ $value | quote }}
+        {{- end }}
+        {{- range $key, $value := .Values.api.additionalEnv }}
+        - name: {{ $key }}
+          value: {{ $value | quote }}
+        {{- end }}
+        - name: INIT_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: {{ include "dify.fullname" . }}-secrets
+              key: INIT_PASSWORD
+        - name: SECRET_KEY
+          valueFrom:
+            secretKeyRef:
+              name: {{ include "dify.fullname" . }}-secrets
+              key: SECRET_KEY
+        - name: SERVER_KEY
+          valueFrom:
+            secretKeyRef:
+              name: {{ include "dify.fullname" . }}-secrets
+              key: SERVER_KEY
+        - name: DB_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: {{ include "dify.fullname" . }}-secrets
+              key: DB_PASSWORD
+        - name: PGVECTOR_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: {{ include "dify.fullname" . }}-secrets
+              key: PGVECTOR_PASSWORD
+        - name: PLUGIN_DAEMON_KEY
+          valueFrom:
+            secretKeyRef:
+              name: {{ include "dify.fullname" . }}-secrets
+              key: SERVER_KEY
+        - name: INNER_API_KEY
+          valueFrom:
+            secretKeyRef:
+              name: {{ include "dify.fullname" . }}-secrets
+              key: PLUGIN_DIFY_INNER_API_KEY
+        - name: INNER_API_KEY_FOR_PLUGIN
+          valueFrom:
+            secretKeyRef:
+              name: {{ include "dify.fullname" . }}-secrets
+              key: INNER_API_KEY_FOR_PLUGIN
+        - name: RESEND_API_KEY
+          valueFrom:
+            secretKeyRef:
+              name: {{ include "dify.fullname" . }}-secrets
+              key: RESEND_API_KEY
+        - name: CODE_EXECUTION_API_KEY
+          valueFrom:
+            secretKeyRef:
+              name: {{ include "dify.fullname" . }}-secrets
+              key: CODE_EXECUTION_API_KEY
+        volumeMounts:
+        - name: gcs
+          mountPath: /app/logs
+          readOnly: false
+      - name: cloud-sql-proxy
+        image: gcr.io/cloud-sql-connectors/cloud-sql-proxy:2
+        command:
+        - "/cloud-sql-proxy"
+        - "--address=0.0.0.0"
+        - "--port=5432"
+        - "{{ .Values.global.project }}:{{ .Values.cloudSqlProxy.region }}:{{ .Values.cloudSqlProxy.instance }}"
+        resources:
+          {{- toYaml .Values.cloudSqlProxy.resources | nindent 10 }}
+      volumes:
+      - name: gcs
+        csi:
+          driver: gcsfuse.csi.storage.gke.io
+          readOnly: false
+          volumeAttributes:
+            bucketName: {{ .Values.api.bucketName }}
+            mountOptions: 'implicit-dirs,file-cache:enable-parallel-downloads:true,file-cache:max-size-mb:-1,uid=1000,gid=1000,file-mode=777,dir-mode=766'

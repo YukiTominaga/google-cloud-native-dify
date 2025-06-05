@@ -1,0 +1,23 @@
+{{- if .Values.gateway.enabled }}
+apiVersion: gateway.networking.k8s.io/v1
+kind: Gateway
+metadata:
+  name: {{ include "dify.fullname" . }}-gateway
+  namespace: {{ .Release.Namespace }}
+  annotations:
+    {{- toYaml .Values.gateway.annotations | nindent 4 }}
+spec:
+  gatewayClassName: {{ .Values.gateway.gatewayClassName }}
+  listeners:
+  - name: https
+    protocol: HTTPS
+    port: 443
+    allowedRoutes:
+      kinds:
+      - kind: HTTPRoute
+      namespaces:
+        from: All
+  addresses:
+  - type: NamedAddress
+    value: {{ .Values.gateway.addressName }}
+{{- end }}

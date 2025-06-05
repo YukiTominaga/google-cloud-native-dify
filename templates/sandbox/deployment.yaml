@@ -1,0 +1,76 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "dify.fullname" . }}-sandbox
+  namespace: {{ .Release.Namespace }}
+  labels:
+    app.kubernetes.io/component: sandbox
+spec:
+  replicas: {{ .Values.sandbox.replicas }}
+  selector:
+    matchLabels:
+      app.kubernetes.io/component: sandbox
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/component: sandbox
+      annotations:
+        gke-gcsfuse/volumes: 'true'
+        gke-gcsfuse/ephemeral-storage-limit: '1Gi'
+    spec:
+      affinity:
+        {{- toYaml .Values.affinity | nindent 8 }}
+      serviceAccountName: {{ include "dify.serviceAccountName" . }}
+      securityContext:
+        {{- toYaml .Values.podSecurityContext | nindent 8 }}
+      containers:
+      - name: sandbox
+        image: "{{ .Values.sandbox.image.repository }}:{{ .Values.sandbox.image.tag }}"
+        imagePullPolicy: {{ .Values.sandbox.image.pullPolicy }}
+        ports:
+        - name: http
+          containerPort: {{ .Values.sandbox.containerPort }}
+          protocol: TCP
+        resources:
+          {{- toYaml .Values.sandbox.resources | nindent 10 }}
+        livenessProbe:
+          {{- toYaml .Values.sandbox.livenessProbe | nindent 10 }}
+        readinessProbe:
+          {{- toYaml .Values.sandbox.readinessProbe | nindent 10 }}
+        lifecycle:
+          preStop:
+            exec:
+              command:
+              - /bin/sh
+              - -c
+              - "sleep 15"
+        env:
+        {{- include "dify.commonEnvs" . | nindent 8 }}
+        {{- range $key, $value := .Values.config }}
+        - name: {{ $key }}
+          value: {{ $value | quote }}
+        {{- end }}
+        {{- range $key, $value := .Values.sandbox.additionalEnv }}
+        - name: {{ $key }}
+          value: {{ $value | quote }}
+        {{- end }}
+        - name: API_KEY
+          valueFrom:
+            secretKeyRef:
+              name: {{ include "dify.fullname" . }}-secrets
+              key: CODE_EXECUTION_API_KEY
+        volumeMounts:
+        - name: gcs
+          mountPath: /logs
+        - name: gcs
+          mountPath: /var/sandbox
+        - name: gcs
+          mountPath: /dependencies
+      volumes:
+      - name: gcs
+        csi:
+          driver: gcsfuse.csi.storage.gke.io
+          readOnly: false
+          volumeAttributes:
+            bucketName: {{ .Values.sandbox.bucketName }}
+            mountOptions: 'implicit-dirs,file-cache:enable-parallel-downloads:true,file-cache:max-size-mb:-1,uid=1000,gid=1000,file-mode=777,dir-mode=766'

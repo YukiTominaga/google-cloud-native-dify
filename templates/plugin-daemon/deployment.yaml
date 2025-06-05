@@ -1,0 +1,96 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "dify.fullname" . }}-plugin-daemon
+  namespace: {{ .Release.Namespace }}
+  labels:
+    app.kubernetes.io/component: plugin-daemon
+spec:
+  replicas: {{ .Values.pluginDaemon.replicas }}
+  selector:
+    matchLabels:
+      app.kubernetes.io/component: plugin-daemon
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/component: plugin-daemon
+    spec:
+      affinity:
+        {{- toYaml .Values.affinity | nindent 8 }}
+      serviceAccountName: {{ include "dify.serviceAccountName" . }}
+      securityContext:
+        {{- toYaml .Values.podSecurityContext | nindent 8 }}
+      containers:
+      - name: plugin-daemon
+        image: "{{ .Values.pluginDaemon.image.repository }}:{{ .Values.pluginDaemon.image.tag }}"
+        imagePullPolicy: {{ .Values.pluginDaemon.image.pullPolicy }}
+        ports:
+        - name: http
+          containerPort: {{ .Values.pluginDaemon.containerPort }}
+          protocol: TCP
+        - name: debug
+          containerPort: {{ .Values.pluginDaemon.debugPort }}
+          protocol: TCP
+        securityContext:
+          runAsNonRoot: true
+        resources:
+          {{- toYaml .Values.pluginDaemon.resources | nindent 10 }}
+        livenessProbe:
+          {{- toYaml .Values.pluginDaemon.livenessProbe | nindent 10 }}
+        readinessProbe:
+          {{- toYaml .Values.pluginDaemon.readinessProbe | nindent 10 }}
+        lifecycle:
+          preStop:
+            exec:
+              command:
+              - /bin/sh
+              - -c
+              - "sleep 15"
+        env:
+        {{- include "dify.commonEnvs" . | nindent 8 }}
+        {{- range $key, $value := .Values.config }}
+        - name: {{ $key }}
+          value: {{ $value | quote }}
+        {{- end }}
+        {{- range $key, $value := .Values.pluginDaemon.additionalEnv }}
+        - name: {{ $key }}
+          value: {{ $value | quote }}
+        {{- end }}
+        - name: SERVER_KEY
+          valueFrom:
+            secretKeyRef:
+              name: {{ include "dify.fullname" . }}-secrets
+              key: SERVER_KEY
+        - name: DIFY_INNER_API_KEY
+          valueFrom:
+            secretKeyRef:
+              name: {{ include "dify.fullname" . }}-secrets
+              key: DIFY_INNER_API_KEY
+        - name: DB_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: {{ include "dify.fullname" . }}-secrets
+              key: DB_PASSWORD
+        volumeMounts:
+        - name: plugin-daemon-storage
+          mountPath: {{ .Values.config.PLUGIN_STORAGE_LOCAL_ROOT | quote }}
+        - name : plugin-daemon-storage
+          mountPath: {{ .Values.config.PLUGIN_WORKING_PATH | quote }}
+          subPath: config
+      - name: cloud-sql-proxy
+        image: gcr.io/cloud-sql-connectors/cloud-sql-proxy:2
+        command:
+        - "/cloud-sql-proxy"
+        - "--address=0.0.0.0"
+        - "--port=5432"
+        - "{{ .Values.global.project }}:{{ .Values.cloudSqlProxy.region }}:{{ .Values.cloudSqlProxy.instance }}"
+        resources:
+          {{- toYaml .Values.cloudSqlProxy.resources | nindent 12 }}
+      volumes:
+      - name: plugin-daemon-storage
+        {{- if .Values.pluginDaemon.persistence.enabled }}
+        persistentVolumeClaim:
+          claimName: {{ include "dify.fullname" . }}-plugin-daemon-pvc
+        {{- else }}
+        emptyDir: {}
+        {{- end }}

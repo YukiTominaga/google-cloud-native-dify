@@ -1,0 +1,95 @@
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: {{ include "dify.fullname" . }}-httproute
+  namespace: {{ .Release.Namespace }}
+spec:
+  parentRefs:
+  - name: {{ include "dify.fullname" . }}-gateway
+    kind: Gateway
+    sectionName: https
+  hostnames:
+  - {{ .Values.gateway.hostName }}
+  rules:
+  - matches:
+    - path:
+        type: PathPrefix
+        value: /
+    - path:
+        type: PathPrefix
+        value: /explore
+    backendRefs:
+    - name: {{ include "dify.fullname" . }}-web
+      kind: Service
+      port: {{ .Values.web.service.port }}
+      weight: 1
+  - matches:
+    - path:
+        type: PathPrefix
+        value: /api
+    filters:
+    - type: URLRewrite
+      urlRewrite:
+        path:
+          type: ReplacePrefixMatch
+          replacePrefixMatch: /
+    backendRefs:
+    - name: {{ include "dify.fullname" . }}-api
+      kind: Service
+      port: {{ .Values.api.service.port }}
+      weight: 1
+  - matches:
+    - path:
+        type: PathPrefix
+        value: /v1
+    filters:
+    - type: URLRewrite
+      urlRewrite:
+        path:
+          type: ReplacePrefixMatch
+          replacePrefixMatch: /
+    backendRefs:
+    - name: {{ include "dify.fullname" . }}-api
+      kind: Service
+      port: {{ .Values.api.service.port }}
+      weight: 1
+  - matches:
+    - path:
+        type: PathPrefix
+        value: /files
+    filters:
+    - type: URLRewrite
+      urlRewrite:
+        path:
+          type: ReplacePrefixMatch
+          replacePrefixMatch: /
+    backendRefs:
+    - name: {{ include "dify.fullname" . }}-api
+      kind: Service
+      port: {{ .Values.api.service.port }}
+      weight: 1
+  - matches:
+    - path:
+        type: PathPrefix
+        value: /console
+    backendRefs:
+    - name: {{ include "dify.fullname" . }}-api
+      kind: Service
+      port: {{ .Values.api.service.port }}
+  - matches:
+    - path:
+        type: PathPrefix
+        value: /inner_api
+    backendRefs:
+    - name: {{ include "dify.fullname" . }}-api
+      kind: Service
+      port: {{ .Values.api.service.port }}
+  - matches:
+    - path:
+        type: PathPrefix
+        value: /e/
+    backendRefs:
+    - name: {{ include "dify.fullname" . }}-plugin-daemon
+      kind: Service
+      port: {{ .Values.pluginDaemon.service.port }}
+      weight: 1

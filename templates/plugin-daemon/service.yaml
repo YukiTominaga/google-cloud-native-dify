@@ -1,0 +1,20 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "dify.fullname" . }}-plugin-daemon
+  namespace: {{ .Release.Namespace }}
+  labels:
+    app.kubernetes.io/component: plugin-daemon
+spec:
+  type: ClusterIP
+  ports:
+  - name: http
+    port: {{ .Values.pluginDaemon.service.port }}
+    targetPort: {{ .Values.pluginDaemon.containerPort }}
+    protocol: TCP
+  - name: debug
+    port: {{ .Values.pluginDaemon.service.debugPort }}
+    targetPort: {{ .Values.pluginDaemon.debugPort }}
+    protocol: TCP
+  selector:
+    app.kubernetes.io/component: plugin-daemon
