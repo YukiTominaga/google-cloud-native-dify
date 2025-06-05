@@ -14,9 +14,6 @@ spec:
     metadata:
       labels:
         app.kubernetes.io/component: api
-      annotations:
-        gke-gcsfuse/volumes: 'true'
-        gke-gcsfuse/ephemeral-storage-limit: '1Gi'
     spec:
       affinity:
         {{- toYaml .Values.affinity | nindent 8 }}
@@ -108,10 +105,6 @@ spec:
             secretKeyRef:
               name: {{ include "dify.fullname" . }}-secrets
               key: CODE_EXECUTION_API_KEY
-        volumeMounts:
-        - name: gcs
-          mountPath: /app/logs
-          readOnly: false
       - name: cloud-sql-proxy
         image: gcr.io/cloud-sql-connectors/cloud-sql-proxy:2
         command:
@@ -121,11 +114,3 @@ spec:
         - "{{ .Values.global.project }}:{{ .Values.cloudSqlProxy.region }}:{{ .Values.cloudSqlProxy.instance }}"
         resources:
           {{- toYaml .Values.cloudSqlProxy.resources | nindent 10 }}
-      volumes:
-      - name: gcs
-        csi:
-          driver: gcsfuse.csi.storage.gke.io
-          readOnly: false
-          volumeAttributes:
-            bucketName: {{ .Values.api.bucketName }}
-            mountOptions: 'implicit-dirs,file-cache:enable-parallel-downloads:true,file-cache:max-size-mb:-1,uid=1000,gid=1000,file-mode=777,dir-mode=766'

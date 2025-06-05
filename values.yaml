@@ -1,6 +1,6 @@
 config:
   # ログを標準出力に設定
-  LOG_FILE: /app/logs/server.log
+  LOG_FILE: ""
   # デバッグレベルの設定（必要に応じて変更可能: DEBUG, INFO, WARNING, ERROR, CRITICAL）
   LOG_LEVEL: INFO
   # ログデータフォーマット
@@ -230,8 +230,6 @@ api:
     ETL_TYPE: 'dify'
     INNER_API: 'true'
     ENTERPRISE_ENABLED: 'false'
-    GOOGLE_STORAGE_BUCKET_NAME: <API_BUCKET_NAME> # Fixme
-  bucketName: <API_BUCKET_NAME> # Fixme
   containerPort: 5001
   service:
     type: ClusterIP
@@ -260,8 +258,6 @@ worker:
     MODE: worker
     DB_DATABASE: dify
     ETL_TYPE: 'dify'
-    GOOGLE_STORAGE_BUCKET_NAME: <WORKER_BUCKET_NAME> # Fixme
-  bucketName: <WORKER_BUCKET_NAME> # Fixme
 
 web:
   replicas: 1

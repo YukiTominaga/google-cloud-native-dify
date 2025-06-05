@@ -50,8 +50,6 @@
 
 ### Google Cloud Storage
 
-- dify-api用バケット
-- dify-worker用バケット
 - dify-sandbox用バケット
 
 ## helmの適用準備
