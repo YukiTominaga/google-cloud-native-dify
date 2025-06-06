@@ -1,0 +1,16 @@
+{{- if .Values.pluginDaemon.persistence.enabled }}
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: {{ include "dify.fullname" . }}-sandbox-pvc
+  namespace: {{ .Release.Namespace }}
+  labels:
+    app.kubernetes.io/component: sandbox
+spec:
+  accessModes:
+  - {{ .Values.sandbox.persistence.accessMode }}
+  storageClassName: {{ .Values.sandbox.persistence.storageClass }}
+  resources:
+    requests:
+      storage: {{ .Values.sandbox.persistence.size }}
+{{- end }}

@@ -27,12 +27,6 @@ spec:
     - path:
         type: PathPrefix
         value: /api
-    filters:
-    - type: URLRewrite
-      urlRewrite:
-        path:
-          type: ReplacePrefixMatch
-          replacePrefixMatch: /
     backendRefs:
     - name: {{ include "dify.fullname" . }}-api
       kind: Service
@@ -42,12 +36,6 @@ spec:
     - path:
         type: PathPrefix
         value: /v1
-    filters:
-    - type: URLRewrite
-      urlRewrite:
-        path:
-          type: ReplacePrefixMatch
-          replacePrefixMatch: /
     backendRefs:
     - name: {{ include "dify.fullname" . }}-api
       kind: Service
@@ -84,6 +72,15 @@ spec:
     - name: {{ include "dify.fullname" . }}-api
       kind: Service
       port: {{ .Values.api.service.port }}
+  - matches:
+    - path:
+        type: PathPrefix
+        value: /health
+    backendRefs:
+    - name: {{ include "dify.fullname" . }}-api
+      kind: Service
+      port: {{ .Values.api.service.port }}
+      weight: 1
   - matches:
     - path:
         type: PathPrefix

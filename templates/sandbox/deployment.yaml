@@ -6,7 +6,9 @@ metadata:
   labels:
     app.kubernetes.io/component: sandbox
 spec:
-  replicas: {{ .Values.sandbox.replicas }}
+  replicas: {{ .Values.sandbox.replicas }} # ローカルファイルシステムに依存するため、NFSを使わなければ1で固定
+  strategy:
+    type: Recreate
   selector:
     matchLabels:
       app.kubernetes.io/component: sandbox
@@ -14,9 +16,6 @@ spec:
     metadata:
       labels:
         app.kubernetes.io/component: sandbox
-      annotations:
-        gke-gcsfuse/volumes: 'true'
-        gke-gcsfuse/ephemeral-storage-limit: '1Gi'
     spec:
       affinity:
         {{- toYaml .Values.affinity | nindent 8 }}
@@ -60,17 +59,17 @@ spec:
               name: {{ include "dify.fullname" . }}-secrets
               key: CODE_EXECUTION_API_KEY
         volumeMounts:
-        - name: gcs
+        - name: sandbox-storage
           mountPath: /logs
-        - name: gcs
+        - name: sandbox-storage
           mountPath: /var/sandbox
-        - name: gcs
+        - name: sandbox-storage
           mountPath: /dependencies
       volumes:
-      - name: gcs
-        csi:
-          driver: gcsfuse.csi.storage.gke.io
-          readOnly: false
-          volumeAttributes:
-            bucketName: {{ .Values.sandbox.bucketName }}
-            mountOptions: 'implicit-dirs,file-cache:enable-parallel-downloads:true,file-cache:max-size-mb:-1,uid=1000,gid=1000,file-mode=777,dir-mode=766'
+      - name: sandbox-storage
+        {{- if .Values.sandbox.persistence.enabled }}
+        persistentVolumeClaim:
+          claimName: {{ include "dify.fullname" . }}-sandbox-pvc
+        {{- else }}
+        emptyDir: {}
+        {{- end }}

@@ -6,7 +6,8 @@
 
 - ユーザー`dify`の作成とパスワードの設定
 - データベース `dify` `dify_plugin` `dify_vector` の作成
-- [pgvector](https://cloud.google.com/blog/ja/products/databases/faster-similarity-search-performance-with-pgvector-indexes?hl=ja) extentionのインストール
+- [pgvector](https://cloud.google.com/blog/ja/products/databases/faster-similarity-search-performance-with-pgvector-indexes?hl=ja) extentionのインストール `CREATE EXTENSION IF NOT EXISTS vector;`
+- pg_bigm拡張機能のインストール `CREATE EXTENSION IF NOT EXISTS pg_bigm`;
 
 ### Kubernetesクラスタ
 
@@ -40,7 +41,7 @@
 - DIFY_INIT_PASSWORD (なんでもいい)
 - DIFY_PLUGIN_DAEMON_KEY
 - DIFY_PLUGIN_INNER_API_KEY
-- DIFY_RESEND_API_KEY (たぶんなくてもいい)
+- DIFY_RESEND_API_KEY (招待メールを送るために本来必要なんだけど、招待メールはなくてもURLでjoinできるので、適当な値でも良い)
 - DIFY_SANDBOX_API_KEY
 - DIFY_SECRET_KEY
 

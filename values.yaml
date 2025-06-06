@@ -64,6 +64,7 @@ config:
   # File Storage Configuration
   # ------------------------------
   STORAGE_TYPE: 'google-storage'
+  GOOGLE_STORAGE_BUCKET_NAME: <YOUR_BUCKET_NAME> # Fixme
   # ------------------------------
   # Vector Database Configuration
   # Cloud SQLのpgvectorの使用を想定
@@ -271,6 +272,7 @@ web:
     maxReplicas: 10
     targetCPUUtilizationPercentage: 80
     targetMemoryUtilizationPercentage: ''
+  containerPort: 3000
   resources:
     requests:
       cpu: 100m
@@ -278,7 +280,6 @@ web:
     limits:
       cpu: 500m
       memory: 512Mi
-  containerPort: 3000
   livenessProbe:
     httpGet:
       path: /apps
@@ -319,6 +320,8 @@ pluginDaemon:
     maxReplicas: 10
     targetCPUUtilizationPercentage: 80
     targetMemoryUtilizationPercentage: ''
+  containerPort: 5002
+  debugPort: 5003
   resources:
     requests:
       cpu: 200m
@@ -345,8 +348,6 @@ pluginDaemon:
   additionalEnv:
     DB_DATABASE: dify_plugin
     SERVER_PORT: '5002'
-  containerPort: 5002
-  debugPort: 5003
   persistence:
     enabled: true
     storageClass: 'standard-rwo-retain'
@@ -369,6 +370,7 @@ sandbox:
     maxReplicas: 10
     targetCPUUtilizationPercentage: 80
     targetMemoryUtilizationPercentage: ''
+  containerPort: 8194
   resources:
     requests:
       cpu: 500m
@@ -392,7 +394,6 @@ sandbox:
     periodSeconds: 30
     successThreshold: 1
     failureThreshold: 2
-  containerPort: 8194
   service:
     type: ClusterIP
     port: 8194
@@ -401,8 +402,6 @@ sandbox:
     GIN_MODE: release
     WORKER_TIMEOUT: 15
     PLACEHOLDER: PLACEHOLDER
-    GOOGLE_STORAGE_BUCKET_NAME: <SANDBOX_BUCKET_NAME> # Fixme
-  bucketName: <SANDBOX_BUCKET_NAME> # Fixme
   config:
     # pythonRequirements: |
     #   numpy==1.20.3
@@ -499,6 +498,8 @@ externalSecret:
 valkey:
   enabled: true
   architecture: standalone
+  auth:
+    password: <VALKEY_PASSWORD> # Fixme
   primary:
     extraFlags:
       - '--maxmemory-policy noeviction'
@@ -511,5 +512,3 @@ valkey:
                   operator: In
                   values:
                     - <YOUR_NODE_POOL_NAME> # Fixme # e.g. default-pool
-  auth:
-    password: <VALKEY_PASSWORD> # Fixme

@@ -8,4 +8,4 @@ dependencies:
   - name: valkey
     condition: valkey.enabled
     repository: oci://registry-1.docker.io/bitnamicharts
-    version: 2.x.x
+    version: 3.x.x
