@@ -1,4 +1,4 @@
-{{- if ((.Values.api.hpa.enables)) }}
+{{- if ((.Values.sandbox.hpa.enables)) }}
 apiVersion: autoscaling/v2
 kind: HorizontalPodAutoscaler
 metadata:

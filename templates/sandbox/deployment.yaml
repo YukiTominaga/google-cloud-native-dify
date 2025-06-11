@@ -20,8 +20,6 @@ spec:
       affinity:
         {{- toYaml .Values.affinity | nindent 8 }}
       serviceAccountName: {{ include "dify.serviceAccountName" . }}
-      securityContext:
-        {{- toYaml .Values.podSecurityContext | nindent 8 }}
       containers:
       - name: sandbox
         image: "{{ .Values.sandbox.image.repository }}:{{ .Values.sandbox.image.tag }}"
@@ -58,18 +56,11 @@ spec:
             secretKeyRef:
               name: {{ include "dify.fullname" . }}-secrets
               key: CODE_EXECUTION_API_KEY
-        volumeMounts:
-        - name: sandbox-storage
-          mountPath: /logs
-        - name: sandbox-storage
-          mountPath: /var/sandbox
-        - name: sandbox-storage
-          mountPath: /dependencies
-      volumes:
-      - name: sandbox-storage
-        {{- if .Values.sandbox.persistence.enabled }}
-        persistentVolumeClaim:
-          claimName: {{ include "dify.fullname" . }}-sandbox-pvc
-        {{- else }}
-        emptyDir: {}
-        {{- end }}
+      # volumes:
+      # - name: sandbox-storage
+      #   {{- if .Values.sandbox.persistence.enabled }}
+      #   persistentVolumeClaim:
+      #     claimName: {{ include "dify.fullname" . }}-sandbox-pvc
+      #   {{- else }}
+      #   emptyDir: {}
+      #   {{- end }}

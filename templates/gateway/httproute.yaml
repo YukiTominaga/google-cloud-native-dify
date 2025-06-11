@@ -45,12 +45,6 @@ spec:
     - path:
         type: PathPrefix
         value: /files
-    filters:
-    - type: URLRewrite
-      urlRewrite:
-        path:
-          type: ReplacePrefixMatch
-          replacePrefixMatch: /
     backendRefs:
     - name: {{ include "dify.fullname" . }}-api
       kind: Service
