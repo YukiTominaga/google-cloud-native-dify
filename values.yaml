@@ -496,13 +496,7 @@ externalSecret:
         version: latest
 
 valkey:
-  enabled: true
-  architecture: standalone
-  auth:
-    password: <VALKEY_PASSWORD> # Fixme
   primary:
-    extraFlags:
-      - '--maxmemory-policy noeviction'
     affinity:
       nodeAffinity:
         requiredDuringSchedulingIgnoredDuringExecution:

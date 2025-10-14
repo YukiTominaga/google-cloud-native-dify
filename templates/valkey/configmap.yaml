@@ -1,0 +1,15 @@
+{{- if .Values.valkey.enabled }}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "dify.fullname" . }}-valkey-config
+  labels:
+    {{- include "dify.labels" . | nindent 4 }}
+    app.kubernetes.io/component: valkey
+data:
+  valkey.conf: |
+    # ユーザー名とパスワード設定
+    requirepass {{ .Values.config.REDIS_PASSWORD }}
+    user default on >{{ .Values.config.REDIS_PASSWORD }} ~* &* +@all
+{{- end }}
+
