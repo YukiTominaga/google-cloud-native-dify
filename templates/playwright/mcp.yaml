@@ -1,3 +1,4 @@
+{{- if .Values.playwright.mcp.enabled }}
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -46,3 +47,4 @@ spec:
     targetPort: 8931
   selector:
     app.kubernetes.io/component: playwright-mcp
+{{- end }}
