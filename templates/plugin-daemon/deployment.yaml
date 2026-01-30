@@ -48,6 +48,8 @@ spec:
               - /bin/sh
               - -c
               - "sleep 15"
+        resources:
+          {{- toYaml .Values.pluginDaemon.resources | nindent 10 }}
         env:
         {{- include "dify.commonEnvs" . | nindent 8 }}
         {{- range $key, $value := .Values.config }}

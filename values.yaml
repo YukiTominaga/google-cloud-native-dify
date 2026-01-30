@@ -324,11 +324,11 @@ pluginDaemon:
   debugPort: 5003
   resources:
     requests:
-      cpu: 200m
-      memory: 512Mi
+      cpu: 1000m
+      memory: 2Gi
     limits:
-      cpu: 500m
-      memory: 1Gi
+      cpu: 2000m
+      memory: 4Gi
   livenessProbe:
     tcpSocket:
       port: http
