@@ -193,7 +193,7 @@ api:
   replicas: 1
   image:
     repository: langgenius/dify-api
-    tag: 1.4.1
+    tag: 1.11.4
     pullPolicy: IfNotPresent
   hpa:
     enables: true
@@ -240,7 +240,7 @@ worker:
   replicas: 1
   image:
     repository: langgenius/dify-api
-    tag: 1.4.1
+    tag: 1.11.4
     pullPolicy: IfNotPresent
   hpa:
     enabled: true
@@ -264,7 +264,7 @@ web:
   replicas: 1
   image:
     repository: langgenius/dify-web
-    tag: 1.4.1
+    tag: 1.11.4
     pullPolicy: IfNotPresent
   hpa:
     enabled: true
@@ -275,10 +275,10 @@ web:
   containerPort: 3000
   resources:
     requests:
-      cpu: 100m
+      cpu: 300m
       memory: 512Mi
     limits:
-      cpu: 200m
+      cpu: 600m
       memory: 1Gi
   livenessProbe:
     httpGet:
@@ -312,7 +312,7 @@ pluginDaemon:
   replicas: 1 # ローカルファイルシステムに強力に依存するので、NFSを使わない限り1 ※ GCSFUSEはうまく使えない
   image:
     repository: langgenius/dify-plugin-daemon
-    tag: 0.1.1-local
+    tag: 0.5.2-local
     pullPolicy: IfNotPresent
   hpa:
     enabled: false
