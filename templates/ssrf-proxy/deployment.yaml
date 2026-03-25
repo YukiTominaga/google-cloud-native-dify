@@ -1,0 +1,71 @@
+{{- if .Values.ssrf_proxy.enabled }}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "dify.fullname" . }}-ssrf-proxy
+  namespace: {{ .Release.Namespace }}
+  labels:
+    app.kubernetes.io/component: ssrf-proxy
+spec:
+  replicas: {{ .Values.ssrf_proxy.replicas }}
+  selector:
+    matchLabels:
+      app.kubernetes.io/component: ssrf-proxy
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/component: ssrf-proxy
+    spec:
+      affinity:
+        {{- toYaml .Values.affinity | nindent 8 }}
+      serviceAccountName: {{ include "dify.serviceAccountName" . }}
+      securityContext:
+        runAsUser: 0
+        runAsGroup: 0
+        fsGroup: 0
+        runAsNonRoot: false
+      containers:
+      - name: ssrf-proxy
+        image: "{{ .Values.ssrf_proxy.image.repository }}:{{ .Values.ssrf_proxy.image.tag }}"
+        imagePullPolicy: {{ .Values.ssrf_proxy.image.pullPolicy }}
+        command:
+          - sh
+          - -c
+          - |
+            cp /docker-entrypoint-mount.sh /docker-entrypoint.sh
+            sed -i 's/\r$//' /docker-entrypoint.sh
+            chmod +x /docker-entrypoint.sh
+            /docker-entrypoint.sh
+        ports:
+        - name: http
+          containerPort: {{ .Values.ssrf_proxy.service.httpPort }}
+          protocol: TCP
+        - name: reverse-proxy
+          containerPort: {{ .Values.ssrf_proxy.service.reverseProxyPort }}
+          protocol: TCP
+        resources:
+          {{- toYaml .Values.ssrf_proxy.resources | nindent 10 }}
+        env:
+        - name: HTTP_PORT
+          value: {{ .Values.ssrf_proxy.service.httpPort | quote }}
+        - name: COREDUMP_DIR
+          value: {{ .Values.ssrf_proxy.config.coredumpDir | quote }}
+        - name: REVERSE_PROXY_PORT
+          value: {{ .Values.ssrf_proxy.service.reverseProxyPort | quote }}
+        - name: SANDBOX_HOST
+          value: {{ include "dify.fullname" . }}-sandbox
+        - name: SANDBOX_PORT
+          value: {{ .Values.sandbox.service.port | quote }}
+        volumeMounts:
+        - name: ssrf-proxy-config
+          mountPath: /etc/squid/squid.conf.template
+          subPath: squid.conf.template
+        - name: ssrf-proxy-config
+          mountPath: /docker-entrypoint-mount.sh
+          subPath: docker-entrypoint.sh
+      volumes:
+      - name: ssrf-proxy-config
+        configMap:
+          name: {{ include "dify.fullname" . }}-ssrf-proxy-config
+          defaultMode: 0755
+{{- end }}

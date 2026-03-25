@@ -56,6 +56,12 @@ spec:
             secretKeyRef:
               name: {{ include "dify.fullname" . }}-secrets
               key: CODE_EXECUTION_API_KEY
+        {{- if .Values.ssrf_proxy.enabled }}
+        - name: HTTP_PROXY
+          value: "http://ssrf-proxy:{{ .Values.ssrf_proxy.service.httpPort }}"
+        - name: HTTPS_PROXY
+          value: "http://ssrf-proxy:{{ .Values.ssrf_proxy.service.httpPort }}"
+        {{- end }}
       # volumes:
       # - name: sandbox-storage
       #   {{- if .Values.sandbox.persistence.enabled }}

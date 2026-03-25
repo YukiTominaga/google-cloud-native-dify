@@ -1,0 +1,22 @@
+{{- if .Values.ssrf_proxy.enabled }}
+apiVersion: v1
+kind: Service
+metadata:
+  name: ssrf-proxy
+  namespace: {{ .Release.Namespace }}
+  labels:
+    app.kubernetes.io/component: ssrf-proxy
+spec:
+  type: {{ .Values.ssrf_proxy.service.type }}
+  ports:
+  - name: http
+    port: {{ .Values.ssrf_proxy.service.httpPort }}
+    targetPort: http
+    protocol: TCP
+  - name: reverse-proxy
+    port: {{ .Values.ssrf_proxy.service.reverseProxyPort }}
+    targetPort: reverse-proxy
+    protocol: TCP
+  selector:
+    app.kubernetes.io/component: ssrf-proxy
+{{- end }}

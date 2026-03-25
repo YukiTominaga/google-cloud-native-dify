@@ -276,10 +276,10 @@ web:
   resources:
     requests:
       cpu: 300m
-      memory: 512Mi
+      memory: 1Gi
     limits:
       cpu: 600m
-      memory: 1Gi
+      memory: 2Gi
   livenessProbe:
     httpGet:
       path: /apps
@@ -407,6 +407,41 @@ sandbox:
     #   numpy==1.20.3
     #   scipy==1.6.3
     pythonRequirements: ''
+
+ssrf_proxy:
+  enabled: true
+  replicas: 1
+  image:
+    repository: ubuntu/squid
+    tag: latest
+    pullPolicy: IfNotPresent
+  resources:
+    requests:
+      cpu: 100m
+      memory: 128Mi
+    limits:
+      cpu: 500m
+      memory: 512Mi
+  service:
+    type: ClusterIP
+    httpPort: 3128
+    reverseProxyPort: 8194
+  config:
+    coredumpDir: /var/spool/squid
+  # api/worker コンテナに設定される環境変数
+  env:
+    SSRF_PROXY_HTTP_URL: http://ssrf-proxy:3128
+    SSRF_PROXY_HTTPS_URL: http://ssrf-proxy:3128
+    SSRF_HTTP_PORT: 3128
+    SSRF_REVERSE_PROXY_PORT: 8194
+    SSRF_SANDBOX_HOST: dify-sandbox
+    SSRF_DEFAULT_TIME_OUT: 5
+    SSRF_DEFAULT_CONNECT_TIME_OUT: 5
+    SSRF_DEFAULT_READ_TIME_OUT: 5
+    SSRF_DEFAULT_WRITE_TIME_OUT: 5
+    SSRF_POOL_MAX_CONNECTIONS: 100
+    SSRF_POOL_MAX_KEEPALIVE_CONNECTIONS: 20
+    SSRF_POOL_KEEPALIVE_EXPIRY: "5.0"
 
 podSecurityContext:
   runAsUser: 1000

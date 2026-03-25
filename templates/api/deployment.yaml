@@ -20,6 +20,22 @@ spec:
       serviceAccountName: {{ include "dify.serviceAccountName" . }}
       securityContext:
         {{- toYaml .Values.podSecurityContext | nindent 8 }}
+      initContainers:
+      - name: cloud-sql-proxy
+        image: gcr.io/cloud-sql-connectors/cloud-sql-proxy:2
+        restartPolicy: Always
+        command:
+        - "/cloud-sql-proxy"
+        - "--address=0.0.0.0"
+        - "--port=5432"
+        - "{{ .Values.global.project }}:{{ .Values.cloudSqlProxy.region }}:{{ .Values.cloudSqlProxy.instance }}"
+        readinessProbe:
+          tcpSocket:
+            port: 5432
+          initialDelaySeconds: 5
+          periodSeconds: 5
+        resources:
+          {{- toYaml .Values.cloudSqlProxy.resources | nindent 12 }}
       containers:
       - name: api
         image: "{{ .Values.api.image.repository }}:{{ .Values.api.image.tag }}"
@@ -54,6 +70,12 @@ spec:
         {{- range $key, $value := .Values.api.additionalEnv }}
         - name: {{ $key }}
           value: {{ $value | quote }}
+        {{- end }}
+        {{- if .Values.ssrf_proxy.enabled }}
+        {{- range $key, $value := .Values.ssrf_proxy.env }}
+        - name: {{ $key }}
+          value: {{ $value | quote }}
+        {{- end }}
         {{- end }}
         - name: INIT_PASSWORD
           valueFrom:
@@ -105,12 +127,3 @@ spec:
             secretKeyRef:
               name: {{ include "dify.fullname" . }}-secrets
               key: CODE_EXECUTION_API_KEY
-      - name: cloud-sql-proxy
-        image: gcr.io/cloud-sql-connectors/cloud-sql-proxy:2
-        command:
-        - "/cloud-sql-proxy"
-        - "--address=0.0.0.0"
-        - "--port=5432"
-        - "{{ .Values.global.project }}:{{ .Values.cloudSqlProxy.region }}:{{ .Values.cloudSqlProxy.instance }}"
-        resources:
-          {{- toYaml .Values.cloudSqlProxy.resources | nindent 10 }}
