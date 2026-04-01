@@ -1,0 +1,38 @@
+apiVersion: networking.gke.io/v1
+kind: GCPBackendPolicy
+metadata:
+  name: {{ include "dify.fullname" . }}-api-backend-policy
+  namespace: {{ .Release.Namespace }}
+spec:
+  default:
+    timeoutSec: {{ .Values.gateway.apiBackendTimeoutSec }}
+  targetRef:
+    group: ''
+    kind: Service
+    name: {{ include "dify.fullname" . }}-api
+---
+apiVersion: networking.gke.io/v1
+kind: GCPBackendPolicy
+metadata:
+  name: {{ include "dify.fullname" . }}-web-backend-policy
+  namespace: {{ .Release.Namespace }}
+spec:
+  default:
+    timeoutSec: {{ .Values.gateway.apiBackendTimeoutSec }}
+  targetRef:
+    group: ''
+    kind: Service
+    name: {{ include "dify.fullname" . }}-web
+---
+apiVersion: networking.gke.io/v1
+kind: GCPBackendPolicy
+metadata:
+  name: {{ include "dify.fullname" . }}-plugin-daemon-backend-policy
+  namespace: {{ .Release.Namespace }}
+spec:
+  default:
+    timeoutSec: {{ .Values.gateway.apiBackendTimeoutSec }}
+  targetRef:
+    group: ''
+    kind: Service
+    name: {{ include "dify.fullname" . }}-plugin-daemon
