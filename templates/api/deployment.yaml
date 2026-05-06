@@ -17,9 +17,25 @@ spec:
     spec:
       affinity:
         {{- toYaml .Values.affinity | nindent 8 }}
+        podAntiAffinity:
+          preferredDuringSchedulingIgnoredDuringExecution:
+          - weight: 100
+            podAffinityTerm:
+              topologyKey: kubernetes.io/hostname
+              labelSelector:
+                matchLabels:
+                  app.kubernetes.io/component: api
       serviceAccountName: {{ include "dify.serviceAccountName" . }}
       securityContext:
         {{- toYaml .Values.podSecurityContext | nindent 8 }}
+      terminationGracePeriodSeconds: 60
+      topologySpreadConstraints:
+      - maxSkew: 1
+        topologyKey: topology.kubernetes.io/zone
+        whenUnsatisfiable: ScheduleAnyway
+        labelSelector:
+          matchLabels:
+            app.kubernetes.io/component: api
       initContainers:
       - name: cloud-sql-proxy
         image: gcr.io/cloud-sql-connectors/cloud-sql-proxy:2
@@ -62,6 +78,8 @@ spec:
         env:
         - name: MODE
           value: api
+        - name: HOME
+          value: /tmp
         {{- include "dify.commonEnvs" . | nindent 8 }}
         {{- range $key, $value := .Values.config }}
         - name: {{ $key }}

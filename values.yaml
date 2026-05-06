@@ -173,6 +173,13 @@ config:
   WORKFLOW_PARALLEL_DEPTH_LIMIT: 3
   WORKFLOW_FILE_UPLOAD_LIMIT: 10
   WORKFLOW_NODE_EXECUTION_STORAGE: rdbms
+  # ------------------------------
+  # 1.14
+  # ------------------------------
+  # ENABLE_COLLABORATION_MODE: true
+  # SERVER_WORKER_CLASS: geventwebsocket.gunicorn.workers.GeventWebSocketWorker
+  # NEXT_PUBLIC_SOCKET_URL: your deployment’s WebSocket URL (e.g., wss://dify.example.com)
+
 
 global:
   project: <YOUR_GCP_PROJECT_ID> # Fixme
@@ -190,14 +197,14 @@ cloudSqlProxy:
       memory: 256Mi
 
 api:
-  replicas: 1
+  replicas: 2
   image:
     repository: langgenius/dify-api
-    tag: 1.11.4
+    tag: 1.14.0
     pullPolicy: IfNotPresent
   hpa:
-    enables: true
-    minReplicas: 1
+    enabled: true
+    minReplicas: 2
     maxReplicas: 10
     targetCPUUtilizationPercentage: 80
     targetMemoryUtilizationPercentage: ''
@@ -206,31 +213,35 @@ api:
       cpu: 500m
       memory: 1Gi
     limits:
-      cpu: 1000m
-      memory: 2Gi
+      cpu: 1500m
+      memory: 3Gi
   livenessProbe:
     httpGet:
       path: /health
       port: http
-    initialDelaySeconds: 30
+    initialDelaySeconds: 60
     timeoutSeconds: 5
-    periodSeconds: 30
+    periodSeconds: 10
     successThreshold: 1
-    failureThreshold: 2
+    failureThreshold: 6
   readinessProbe:
     httpGet:
       path: /health
       port: http
-    initialDelaySeconds: 10
+    initialDelaySeconds: 15
     timeoutSeconds: 5
     periodSeconds: 5
     successThreshold: 1
-    failureThreshold: 10
+    failureThreshold: 6
   additionalEnv:
     DB_DATABASE: dify
     ETL_TYPE: 'dify'
     INNER_API: 'true'
     ENTERPRISE_ENABLED: 'false'
+    SERVER_WORKER_AMOUNT: '2'
+    SERVER_WORKER_CLASS: 'gevent'
+    GUNICORN_TIMEOUT: '200'
+    SERVER_WORKER_CONNECTIONS: '50'
   containerPort: 5001
   service:
     type: ClusterIP
@@ -240,7 +251,7 @@ worker:
   replicas: 1
   image:
     repository: langgenius/dify-api
-    tag: 1.11.4
+    tag: 1.14.0
     pullPolicy: IfNotPresent
   hpa:
     enabled: true
@@ -264,7 +275,7 @@ web:
   replicas: 1
   image:
     repository: langgenius/dify-web
-    tag: 1.11.4
+    tag: 1.14.0
     pullPolicy: IfNotPresent
   hpa:
     enabled: true
@@ -312,7 +323,7 @@ pluginDaemon:
   replicas: 1 # ローカルファイルシステムに強力に依存するので、NFSを使わない限り1 ※ GCSFUSEはうまく使えない
   image:
     repository: langgenius/dify-plugin-daemon
-    tag: 0.5.2-local
+    tag: 0.6.0-local
     pullPolicy: IfNotPresent
   hpa:
     enabled: false
@@ -362,7 +373,7 @@ sandbox:
   replicas: 1
   image:
     repository: langgenius/dify-sandbox
-    tag: 0.2.12
+    tag: 0.2.15
     pullPolicy: IfNotPresent
   hpa:
     enabled: true
