@@ -200,7 +200,7 @@ api:
   replicas: 2
   image:
     repository: langgenius/dify-api
-    tag: 1.14.0
+    tag: 1.14.2
     pullPolicy: IfNotPresent
   hpa:
     enabled: true
@@ -251,7 +251,7 @@ worker:
   replicas: 1
   image:
     repository: langgenius/dify-api
-    tag: 1.14.0
+    tag: 1.14.2
     pullPolicy: IfNotPresent
   hpa:
     enabled: true
@@ -275,7 +275,7 @@ web:
   replicas: 1
   image:
     repository: langgenius/dify-web
-    tag: 1.14.0
+    tag: 1.14.2
     pullPolicy: IfNotPresent
   hpa:
     enabled: true

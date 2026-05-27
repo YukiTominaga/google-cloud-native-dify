@@ -100,3 +100,8 @@ spec:
             secretKeyRef:
               name: {{ include "dify.fullname" . }}-secrets
               key: RESEND_API_KEY
+        - name: CODE_EXECUTION_API_KEY
+          valueFrom:
+            secretKeyRef:
+              name: {{ include "dify.fullname" . }}-secrets
+              key: CODE_EXECUTION_API_KEY
