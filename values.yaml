@@ -132,7 +132,7 @@ config:
   # プラグインの特定機能を外部から呼び出すためのAPI URL
   # 各プラグインインスタンスに固有のアクセスポイントを提供
   # HOST_NAMEの部分はdifyのホスト名になる
-  ENDPOINT_URL_TEMPLATE: http://dify.utaha.io/e/{hook_id}
+  ENDPOINT_URL_TEMPLATE: https://<YOUR_HOST_NAME>/e/{hook_id}
   MARKETPLACE_ENABLED: true
   MARKETPLACE_API_URL: https://marketplace.dify.ai
   MARKETPLACE_URL: https://marketplace.dify.ai
