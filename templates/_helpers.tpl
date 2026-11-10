@@ -82,3 +82,19 @@ Common environment variables
   value: {{ printf "https://%s" (include "dify.hostName" $ | replace "\"" "") }}
 {{- end }}
 {{- end }}
+
+{{/*
+Podのaffinity
+Autopilotはノードプールを指定するnodeAffinityを拒否するので、global.autopilotがtrueのときはnodeAffinityを出力しない
+引数: (list $ <affinityの値>)
+*/}}
+{{- define "dify.affinity" -}}
+{{- $root := index . 0 -}}
+{{- $affinity := index . 1 | default dict -}}
+{{- if $root.Values.global.autopilot -}}
+{{- $affinity = omit $affinity "nodeAffinity" -}}
+{{- end -}}
+{{- if $affinity -}}
+{{- toYaml $affinity -}}
+{{- end -}}
+{{- end }}

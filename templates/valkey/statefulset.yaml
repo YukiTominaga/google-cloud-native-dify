@@ -54,9 +54,9 @@ spec:
         checksum/scripts: {{ include (print $.Template.BasePath "/valkey/configmap.yaml") . | sha256sum }}
     spec:
       serviceAccountName: {{ include "dify.serviceAccountName" . }}
-      {{- with .Values.valkey.affinity }}
+      {{- with include "dify.affinity" (list $ .Values.valkey.affinity) }}
       affinity:
-        {{- toYaml . | nindent 8 }}
+        {{- . | nindent 8 }}
       {{- end }}
       {{- with .Values.podSecurityContext }}
       securityContext:

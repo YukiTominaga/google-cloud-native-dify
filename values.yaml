@@ -192,6 +192,9 @@ config:
 
 global:
   project: <YOUR_GCP_PROJECT_ID> # Fixme
+  # GKE Autopilotクラスタにデプロイする場合はtrueにする
+  # Autopilotはノードプールを指定できないので、各affinityのnodeAffinityを出力しなくなる
+  autopilot: false
 
 serviceAccount:
   create: true

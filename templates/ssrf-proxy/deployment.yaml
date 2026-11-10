@@ -18,8 +18,10 @@ spec:
       annotations:
         checksum/config: {{ include (print $.Template.BasePath "/ssrf-proxy/configmap.yaml") . | sha256sum }}
     spec:
+      {{- with include "dify.affinity" (list $ .Values.affinity) }}
       affinity:
-        {{- toYaml .Values.affinity | nindent 8 }}
+        {{- . | nindent 8 }}
+      {{- end }}
       serviceAccountName: {{ include "dify.serviceAccountName" . }}
       securityContext:
         runAsUser: 0

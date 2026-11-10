@@ -16,8 +16,10 @@ spec:
       labels:
         app.kubernetes.io/component: playwright
     spec:
+      {{- with include "dify.affinity" (list $ .Values.affinity) }}
       affinity:
-        {{- toYaml .Values.affinity | nindent 8 }}
+        {{- . | nindent 8 }}
+      {{- end }}
       serviceAccountName: {{ include "dify.serviceAccountName" . }}
       securityContext:
         {{- toYaml .Values.podSecurityContext | nindent 8 }}

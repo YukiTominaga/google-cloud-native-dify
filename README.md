@@ -83,7 +83,8 @@ Dify Agent(Agent v2)とコラボレーション機能(ワークフローの共�
 | `config.GOOGLE_STORAGE_BUCKET_NAME` | ファイルストレージ用バケット名 |
 | `config.ENDPOINT_URL_TEMPLATE` | `<YOUR_HOST_NAME>` を公開ホスト名に置き換える |
 | `gateway.hostName` など | 公開ホスト名、グローバルIPアドレス名、SSLポリシー名、certificate-map名 |
-| `affinity` / `valkey.affinity` / `valkey.haproxy.affinity` | Podを配置するノードプール名 |
+| `affinity` / `valkey.affinity` / `valkey.haproxy.affinity` | Podを配置するノードプール名(`global.autopilot: true` の場合は不要) |
+| `global.autopilot` | GKE Autopilotにデプロイする場合は `true`(nodeAffinityを出力しない) |
 | Valkeyのパスワード | 下記の4箇所に同じ値を入れる |
 
 Valkeyのパスワードは次の4箇所に書く。
