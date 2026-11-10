@@ -55,12 +55,6 @@
 
 ## helmの適用準備
 
-valkey Chartのダウンロード
-
-```
-helm dependency update
-```
-
 インストール先のnamespaceの作成
 
 ```

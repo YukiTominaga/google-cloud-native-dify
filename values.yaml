@@ -25,7 +25,6 @@ config:
   DEPLOY_ENV: 'PRODUCTION'
   # When enabled, migrations will be executed prior to application startup
   # and the application will start after the migrations have completed.
-  MIGRATION_ENABLED: true
   # Access token expiration time in minutes
   ACCESS_TOKEN_EXPIRE_MINUTES: 60
   # Refresh token expiration time in days
@@ -48,18 +47,29 @@ config:
   # -------------------------------
   # Redis Configuration
   # -------------------------------
+  # Valkeyはsentinel構成(templates/valkey)
+  # REDIS_HOSTは常に現在のmasterへ転送するHAProxyのService
+  # API / worker間のevent busはsentinelに対応しておらず、REDIS_HOSTへ直接接続する
   REDIS_HOST: dify-valkey-primary
   REDIS_PORT: 6379
   REDIS_USERNAME: default
   REDIS_PASSWORD: <VALKEY_PASSWORD> # Fixme
   REDIS_USE_SSL: false
   REDIS_DB: 0
-  REDIS_USE_SENTINEL: false
+  REDIS_USE_SENTINEL: true
+  # valkey.replicasを変えたらここも合わせる
+  REDIS_SENTINELS: 'dify-valkey-0.dify-valkey-headless:26379,dify-valkey-1.dify-valkey-headless:26379,dify-valkey-2.dify-valkey-headless:26379'
+  REDIS_SENTINEL_SERVICE_NAME: dify
+  REDIS_SENTINEL_PASSWORD: <VALKEY_PASSWORD> # Fixme # REDIS_PASSWORDと同じ値
   # -------------------------------
   # CELERY Configuration
   # workerから利用される
   # -------------------------------
-  CELERY_BROKER_URL: 'redis://default:<VALKEY_PASSWORD>@dify-valkey-primary:6379/1' # Fixme
+  # sentinelを;区切りで列挙する。URL中のユーザー名とパスワードはValkey本体のもの
+  CELERY_BROKER_URL: 'sentinel://default:<VALKEY_PASSWORD>@dify-valkey-0.dify-valkey-headless:26379/1;sentinel://default:<VALKEY_PASSWORD>@dify-valkey-1.dify-valkey-headless:26379/1;sentinel://default:<VALKEY_PASSWORD>@dify-valkey-2.dify-valkey-headless:26379/1' # Fixme
+  CELERY_USE_SENTINEL: true
+  CELERY_SENTINEL_MASTER_NAME: dify
+  CELERY_SENTINEL_PASSWORD: <VALKEY_PASSWORD> # Fixme # REDIS_PASSWORDと同じ値
   # ------------------------------
   # File Storage Configuration
   # ------------------------------
@@ -170,25 +180,26 @@ config:
   WORKFLOW_MAX_EXECUTION_TIME: 1200
   WORKFLOW_CALL_MAX_DEPTH: 5
   MAX_VARIABLE_SIZE: 204800
-  WORKFLOW_PARALLEL_DEPTH_LIMIT: 3
   WORKFLOW_FILE_UPLOAD_LIMIT: 10
   WORKFLOW_NODE_EXECUTION_STORAGE: rdbms
   # ------------------------------
   # 1.14
   # ------------------------------
-  # ENABLE_COLLABORATION_MODE: true
-  # SERVER_WORKER_CLASS: geventwebsocket.gunicorn.workers.GeventWebSocketWorker
-  # NEXT_PUBLIC_SOCKET_URL: your deployment’s WebSocket URL (e.g., wss://dify.example.com)
+  # コラボレーション機能(ワークフローの共同編集)は使わない
+  # アプリ側の既定値はtrueなので明示的に無効化する
+  ENABLE_COLLABORATION_MODE: false
 
 
 global:
   project: <YOUR_GCP_PROJECT_ID> # Fixme
-  edition: "SELF_HOSTED"
 
 serviceAccount:
   create: true
 
 cloudSqlProxy:
+  image:
+    repository: gcr.io/cloud-sql-connectors/cloud-sql-proxy
+    tag: 2.27.0
   region: asia-northeast1
   instance: <CLOUD_SQL_INSTANCE_NAME> # Fixme
   resources:
@@ -200,7 +211,7 @@ api:
   replicas: 2
   image:
     repository: langgenius/dify-api
-    tag: 1.14.2
+    tag: 1.19.0
     pullPolicy: IfNotPresent
   hpa:
     enabled: true
@@ -215,6 +226,15 @@ api:
     limits:
       cpu: 1500m
       memory: 3Gi
+  # gunicornはDBマイグレーションの完了後に起動する
+  # マイグレーション中にlivenessProbeで再起動されないよう、起動完了までは最大10分待つ
+  startupProbe:
+    httpGet:
+      path: /health
+      port: http
+    periodSeconds: 10
+    timeoutSeconds: 5
+    failureThreshold: 60
   livenessProbe:
     httpGet:
       path: /health
@@ -234,10 +254,11 @@ api:
     successThreshold: 1
     failureThreshold: 6
   additionalEnv:
+    # 起動時のDBマイグレーションはapiだけが実行する(worker / beatは実行しない)
+    MIGRATION_ENABLED: 'true'
     DB_DATABASE: dify
     ETL_TYPE: 'dify'
     INNER_API: 'true'
-    ENTERPRISE_ENABLED: 'false'
     SERVER_WORKER_AMOUNT: '2'
     SERVER_WORKER_CLASS: 'gevent'
     GUNICORN_TIMEOUT: '200'
@@ -251,7 +272,7 @@ worker:
   replicas: 1
   image:
     repository: langgenius/dify-api
-    tag: 1.14.2
+    tag: 1.19.0
     pullPolicy: IfNotPresent
   hpa:
     enabled: true
@@ -268,14 +289,32 @@ worker:
       memory: 4Gi
   additionalEnv:
     MODE: worker
+    MIGRATION_ENABLED: 'false'
+    # Celeryの並列数。未設定だと1になる
+    CELERY_WORKER_AMOUNT: '4'
     DB_DATABASE: dify
     ETL_TYPE: 'dify'
+
+# Celery beat。スケジュールトリガーや定期クリーンアップなどの定期タスクを起動する
+# イメージはworkerと同じものを使う
+workerBeat:
+  resources:
+    requests:
+      cpu: 100m
+      memory: 512Mi
+    limits:
+      cpu: 500m
+      memory: 1Gi
+  additionalEnv:
+    MODE: beat
+    MIGRATION_ENABLED: 'false'
+    DB_DATABASE: dify
 
 web:
   replicas: 1
   image:
     repository: langgenius/dify-web
-    tag: 1.14.2
+    tag: 1.19.0
     pullPolicy: IfNotPresent
   hpa:
     enabled: true
@@ -293,7 +332,7 @@ web:
       memory: 2Gi
   livenessProbe:
     httpGet:
-      path: /apps
+      path: /favicon.ico
       port: http
       httpHeaders:
         - name: accept-language
@@ -305,7 +344,7 @@ web:
     failureThreshold: 2
   readinessProbe:
     httpGet:
-      path: /apps
+      path: /favicon.ico
       port: http
       httpHeaders:
         - name: accept-language
@@ -320,10 +359,17 @@ web:
     port: 3000
 
 pluginDaemon:
+  # 0.6.12以降のイメージはdifyユーザー(UID/GID 1001)で動く前提
+  # 他のUIDだと/home/difyに書けず、プラグインをインストールできない
+  podSecurityContext:
+    runAsUser: 1001
+    runAsGroup: 1001
+    fsGroup: 1001
+    runAsNonRoot: true
   replicas: 1 # ローカルファイルシステムに強力に依存するので、NFSを使わない限り1 ※ GCSFUSEはうまく使えない
   image:
     repository: langgenius/dify-plugin-daemon
-    tag: 0.6.0-local
+    tag: 0.6.14-local
     pullPolicy: IfNotPresent
   hpa:
     enabled: false
@@ -424,7 +470,8 @@ ssrf_proxy:
   replicas: 1
   image:
     repository: ubuntu/squid
-    tag: latest
+    # 2026-11時点でlatestが指しているものと同じイメージ
+    tag: 6.6-24.04_beta
     pullPolicy: IfNotPresent
   resources:
     requests:
@@ -436,16 +483,19 @@ ssrf_proxy:
   service:
     type: ClusterIP
     httpPort: 3128
-    reverseProxyPort: 8194
   config:
     coredumpDir: /var/spool/squid
+    # ssrf-proxyはプライベートIP・リンクローカル(メタデータサーバー)宛てを既定で拒否する
+    # クラスタ内や社内のHTTPエンドポイントをDifyから呼びたい場合だけ、カンマ区切りで許可する
+    # 例: allowPrivateIps: "10.0.0.0/8"  allowPrivateDomains: ".svc.cluster.local"
+    # 内部宛て(RFC1918のプライベートIP)はすべて許可する
+    # メタデータサーバー(169.254.169.254)は含めていないので、引き続き拒否される
+    allowPrivateIps: "10.0.0.0/8,172.16.0.0/12,192.168.0.0/16"
+    allowPrivateDomains: ""
   # api/worker コンテナに設定される環境変数
   env:
     SSRF_PROXY_HTTP_URL: http://ssrf-proxy:3128
     SSRF_PROXY_HTTPS_URL: http://ssrf-proxy:3128
-    SSRF_HTTP_PORT: 3128
-    SSRF_REVERSE_PROXY_PORT: 8194
-    SSRF_SANDBOX_HOST: dify-sandbox
     SSRF_DEFAULT_TIME_OUT: 5
     SSRF_DEFAULT_CONNECT_TIME_OUT: 5
     SSRF_DEFAULT_READ_TIME_OUT: 5
@@ -481,8 +531,9 @@ gateway:
   sslPolicy: <YOUR_SSL_POLICY_NAME> # Fixme
   annotations:
     networking.gke.io/certmap: <YOUR_CERT_MAP_NAME> # Fixme
-  # Backend service timeout for api/web/plugin-daemon services in seconds (default: 300 = 5 minutes)
-  apiBackendTimeoutSec: 300
+  # api / web / plugin-daemonのバックエンドタイムアウト(秒)
+  # 応答全体にかかる上限なので、ストリーミング応答もこの時間で切断される。上流のnginx設定(3600秒)に合わせる
+  apiBackendTimeoutSec: 3600
 
 externalSecret:
   refreshInterval: 10m
@@ -544,7 +595,64 @@ externalSecret:
         version: latest
 
 valkey:
-  primary:
+  enabled: true
+  # Valkey本体とsentinelを同じPodに同居させる。過半数で合意を取るので奇数にする
+  replicas: 3
+  # Podごとにディスクを持たせ、全Podが同時に停止してもデータ(Celeryのキューなど)を失わないようにする
+  # falseにするとemptyDirになる
+  persistence:
+    enabled: true
+    storageClass: 'standard-rwo-retain'
+    size: 8Gi
+  resources:
+    requests:
+      cpu: 100m
+      memory: 128Mi
+    limits:
+      cpu: 250m
+      memory: 256Mi
+  sentinel:
+    # masterが無応答になってからダウンと判定するまでの時間
+    downAfterMilliseconds: 5000
+    failoverTimeout: 60000
+    resources:
+      requests:
+        cpu: 50m
+        memory: 64Mi
+      limits:
+        cpu: 100m
+        memory: 128Mi
+  affinity:
+    nodeAffinity:
+      requiredDuringSchedulingIgnoredDuringExecution:
+        nodeSelectorTerms:
+          - matchExpressions:
+              - key: cloud.google.com/gke-nodepool
+                operator: In
+                values:
+                  - <YOUR_NODE_POOL_NAME> # Fixme # e.g. default-pool
+    # 同じノードに固まるとノード障害で過半数を失うので、できるだけ分散させる
+    podAntiAffinity:
+      preferredDuringSchedulingIgnoredDuringExecution:
+        - weight: 100
+          podAffinityTerm:
+            topologyKey: kubernetes.io/hostname
+            labelSelector:
+              matchLabels:
+                app.kubernetes.io/component: valkey
+  # 常に現在のmasterへ転送するプロキシ(Service名: <release>-valkey-primary)
+  haproxy:
+    replicas: 2
+    image:
+      repository: haproxy
+      tag: 3.2-alpine
+    resources:
+      requests:
+        cpu: 50m
+        memory: 64Mi
+      limits:
+        cpu: 200m
+        memory: 128Mi
     affinity:
       nodeAffinity:
         requiredDuringSchedulingIgnoredDuringExecution:
@@ -554,3 +662,10 @@ valkey:
                   operator: In
                   values:
                     - <YOUR_NODE_POOL_NAME> # Fixme # e.g. default-pool
+
+# Playwrightのブラウザサーバー(任意)
+playwright:
+  enabled: false
+  replicas: 1
+  # テンプレートが npx playwright@1.51.0 run-server を実行するので、同じバージョンのイメージにする
+  image: mcr.microsoft.com/playwright:v1.51.0-noble

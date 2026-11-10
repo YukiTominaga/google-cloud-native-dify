@@ -38,7 +38,8 @@ spec:
       type: HTTP
       httpHealthCheck:
         port: 3000
-        requestPath: /apps
+        # 1.19.0では/appsが未認証だと307を返すので、認証不要で200を返す静的ファイルを使う
+        requestPath: /favicon.ico
   targetRef:
     group: ''
     kind: Service

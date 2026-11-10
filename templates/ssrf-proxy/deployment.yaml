@@ -15,6 +15,8 @@ spec:
     metadata:
       labels:
         app.kubernetes.io/component: ssrf-proxy
+      annotations:
+        checksum/config: {{ include (print $.Template.BasePath "/ssrf-proxy/configmap.yaml") . | sha256sum }}
     spec:
       affinity:
         {{- toYaml .Values.affinity | nindent 8 }}
@@ -40,9 +42,6 @@ spec:
         - name: http
           containerPort: {{ .Values.ssrf_proxy.service.httpPort }}
           protocol: TCP
-        - name: reverse-proxy
-          containerPort: {{ .Values.ssrf_proxy.service.reverseProxyPort }}
-          protocol: TCP
         resources:
           {{- toYaml .Values.ssrf_proxy.resources | nindent 10 }}
         env:
@@ -50,16 +49,18 @@ spec:
           value: {{ .Values.ssrf_proxy.service.httpPort | quote }}
         - name: COREDUMP_DIR
           value: {{ .Values.ssrf_proxy.config.coredumpDir | quote }}
-        - name: REVERSE_PROXY_PORT
-          value: {{ .Values.ssrf_proxy.service.reverseProxyPort | quote }}
-        - name: SANDBOX_HOST
-          value: {{ include "dify.fullname" . }}-sandbox
-        - name: SANDBOX_PORT
-          value: {{ .Values.sandbox.service.port | quote }}
+        # プライベートIP宛ては既定で拒否される。許可したい宛先だけをここで指定する
+        - name: SSRF_PROXY_ALLOW_PRIVATE_IPS
+          value: {{ .Values.ssrf_proxy.config.allowPrivateIps | quote }}
+        - name: SSRF_PROXY_ALLOW_PRIVATE_DOMAINS
+          value: {{ .Values.ssrf_proxy.config.allowPrivateDomains | quote }}
         volumeMounts:
         - name: ssrf-proxy-config
           mountPath: /etc/squid/squid.conf.template
           subPath: squid.conf.template
+        - name: ssrf-proxy-config
+          mountPath: /etc/squid/dify_common.conf.template
+          subPath: squid-common.conf.template
         - name: ssrf-proxy-config
           mountPath: /docker-entrypoint-mount.sh
           subPath: docker-entrypoint.sh

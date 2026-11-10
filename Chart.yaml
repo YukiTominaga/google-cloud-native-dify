@@ -3,4 +3,4 @@ name: dify
 description: A Dify chart for Google Kubernetes Engine (GKE) deployments.
 type: application
 version: 0.1.0
-appVersion: '1.16.0'
+appVersion: '1.19.0'

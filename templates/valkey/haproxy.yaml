@@ -1,0 +1,135 @@
+{{- if .Values.valkey.enabled }}
+{{- $name := printf "%s-valkey" (include "dify.fullname" .) }}
+# 常に現在のmasterへ転送するHAProxy
+# DifyのAPI / worker間のevent bus(PUBSUB)はsentinelに対応しておらず REDIS_HOST に直接接続するため、
+# masterを指し続ける接続先としてこれを使う
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ $name }}-haproxy
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "dify.labels" . | nindent 4 }}
+    app.kubernetes.io/component: valkey-haproxy
+data:
+  haproxy.cfg: |
+    global
+      log stdout format raw local0
+
+    defaults
+      mode tcp
+      log global
+      timeout connect 3s
+      timeout client 12h
+      timeout server 12h
+
+    resolvers k8s
+      parse-resolv-conf
+      hold valid 5s
+
+    frontend valkey
+      bind :6379
+      default_backend valkey_master
+
+    backend valkey_master
+      # role:master と答えたノードだけを転送先にする
+      option tcp-check
+      tcp-check connect
+      tcp-check send "AUTH ${VALKEY_PASSWORD}\r\n"
+      tcp-check expect string +OK
+      tcp-check send "INFO replication\r\n"
+      tcp-check expect string role:master
+      tcp-check send "QUIT\r\n"
+      tcp-check expect string +OK
+      # 起動直後は確認が済むまで転送しない。masterでなくなったノードへの既存接続は切断し、クライアントに再接続させる
+      default-server check inter 1s fall 2 rise 1 init-state down on-marked-down shutdown-sessions resolvers k8s init-addr none
+      {{- range $i := until (int .Values.valkey.replicas) }}
+      server valkey-{{ $i }} {{ $name }}-{{ $i }}.{{ $name }}-headless.{{ $.Release.Namespace }}.svc.cluster.local:6379
+      {{- end }}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ $name }}-primary
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "dify.labels" . | nindent 4 }}
+    app.kubernetes.io/component: valkey-haproxy
+spec:
+  type: ClusterIP
+  ports:
+    - name: tcp-valkey
+      port: 6379
+      targetPort: valkey
+      protocol: TCP
+  selector:
+    {{- include "dify.selectorLabels" . | nindent 4 }}
+    app.kubernetes.io/component: valkey-haproxy
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ $name }}-haproxy
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "dify.labels" . | nindent 4 }}
+    app.kubernetes.io/component: valkey-haproxy
+spec:
+  replicas: {{ .Values.valkey.haproxy.replicas }}
+  selector:
+    matchLabels:
+      {{- include "dify.selectorLabels" . | nindent 6 }}
+      app.kubernetes.io/component: valkey-haproxy
+  template:
+    metadata:
+      labels:
+        {{- include "dify.selectorLabels" . | nindent 8 }}
+        app.kubernetes.io/component: valkey-haproxy
+      annotations:
+        checksum/config: {{ .Values.valkey.replicas | toString | sha256sum }}
+    spec:
+      serviceAccountName: {{ include "dify.serviceAccountName" . }}
+      {{- with .Values.valkey.haproxy.affinity }}
+      affinity:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.podSecurityContext }}
+      securityContext:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      containers:
+        - name: haproxy
+          image: "{{ .Values.valkey.haproxy.image.repository }}:{{ .Values.valkey.haproxy.image.tag }}"
+          imagePullPolicy: IfNotPresent
+          {{- with .Values.securityContext }}
+          securityContext:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          env:
+            - name: VALKEY_PASSWORD
+              value: {{ .Values.config.REDIS_PASSWORD | quote }}
+          ports:
+            - name: valkey
+              containerPort: 6379
+              protocol: TCP
+          readinessProbe:
+            tcpSocket:
+              port: valkey
+            initialDelaySeconds: 2
+            periodSeconds: 5
+          livenessProbe:
+            tcpSocket:
+              port: valkey
+            initialDelaySeconds: 10
+            periodSeconds: 10
+          resources:
+            {{- toYaml .Values.valkey.haproxy.resources | nindent 12 }}
+          volumeMounts:
+            - name: config
+              mountPath: /usr/local/etc/haproxy
+              readOnly: true
+      volumes:
+        - name: config
+          configMap:
+            name: {{ $name }}-haproxy
+{{- end }}

@@ -21,10 +21,10 @@ spec:
         {{- toYaml .Values.affinity | nindent 8 }}
       serviceAccountName: {{ include "dify.serviceAccountName" . }}
       securityContext:
-        {{- toYaml .Values.podSecurityContext | nindent 8 }}
+        {{- toYaml .Values.pluginDaemon.podSecurityContext | nindent 8 }}
       initContainers:
       - name: cloud-sql-proxy
-        image: gcr.io/cloud-sql-connectors/cloud-sql-proxy:2
+        image: "{{ .Values.cloudSqlProxy.image.repository }}:{{ .Values.cloudSqlProxy.image.tag }}"
         restartPolicy: Always
         command:
         - "/cloud-sql-proxy"

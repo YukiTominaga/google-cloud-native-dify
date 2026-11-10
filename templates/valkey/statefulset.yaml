@@ -1,39 +1,29 @@
 {{- if .Values.valkey.enabled }}
+{{- $name := printf "%s-valkey" (include "dify.fullname" .) }}
+# Pod単位のDNS名(<pod>.<service>)を提供するheadless Service
+# sentinelはこの名前でmaster / レプリカ / 他のsentinelを認識する
 apiVersion: v1
 kind: Service
 metadata:
-  name: {{ include "dify.fullname" . }}-valkey-headless
+  name: {{ $name }}-headless
+  namespace: {{ .Release.Namespace }}
   labels:
     {{- include "dify.labels" . | nindent 4 }}
     app.kubernetes.io/component: valkey
 spec:
   type: ClusterIP
   clusterIP: None
+  # 起動途中のPodも名前解決できないと、初回構築時にレプリカがmasterを見つけられない
+  publishNotReadyAddresses: true
   ports:
     - name: tcp-valkey
       port: 6379
       targetPort: valkey
       protocol: TCP
-  selector:
-    {{- include "dify.selectorLabels" . | nindent 4 }}
-    app.kubernetes.io/component: valkey
----
-apiVersion: v1
-kind: Service
-metadata:
-  name: {{ include "dify.fullname" . }}-valkey-primary
-  labels:
-    {{- include "dify.labels" . | nindent 4 }}
-    app.kubernetes.io/component: valkey
-spec:
-  type: ClusterIP
-  sessionAffinity: None
-  ports:
-    - name: tcp-valkey
-      port: 6379
-      targetPort: valkey
+    - name: tcp-sentinel
+      port: 26379
+      targetPort: sentinel
       protocol: TCP
-      nodePort: null
   selector:
     {{- include "dify.selectorLabels" . | nindent 4 }}
     app.kubernetes.io/component: valkey
@@ -41,13 +31,14 @@ spec:
 apiVersion: apps/v1
 kind: StatefulSet
 metadata:
-  name: {{ include "dify.fullname" . }}-valkey
+  name: {{ $name }}
+  namespace: {{ .Release.Namespace }}
   labels:
     {{- include "dify.labels" . | nindent 4 }}
     app.kubernetes.io/component: valkey
 spec:
-  replicas: 1
-  serviceName: {{ include "dify.fullname" . }}-valkey-headless
+  replicas: {{ .Values.valkey.replicas }}
+  serviceName: {{ $name }}-headless
   updateStrategy:
     type: RollingUpdate
   selector:
@@ -59,9 +50,11 @@ spec:
       labels:
         {{- include "dify.selectorLabels" . | nindent 8 }}
         app.kubernetes.io/component: valkey
+      annotations:
+        checksum/scripts: {{ include (print $.Template.BasePath "/valkey/configmap.yaml") . | sha256sum }}
     spec:
       serviceAccountName: {{ include "dify.serviceAccountName" . }}
-      {{- with .Values.valkey.primary.affinity }}
+      {{- with .Values.valkey.affinity }}
       affinity:
         {{- toYaml . | nindent 8 }}
       {{- end }}
@@ -79,30 +72,103 @@ spec:
             {{- toYaml . | nindent 12 }}
           {{- end }}
           command:
-            - valkey-server
-            - /etc/valkey/valkey.conf
+            - sh
+            - /scripts/start-valkey.sh
+          env:
+            - name: VALKEY_PASSWORD
+              value: {{ .Values.config.REDIS_PASSWORD | quote }}
+            # valkey-cliがこの値で自動的に認証する
+            - name: REDISCLI_AUTH
+              value: {{ .Values.config.REDIS_PASSWORD | quote }}
           ports:
             - name: valkey
               containerPort: 6379
               protocol: TCP
+          readinessProbe:
+            exec:
+              command: ["sh", "-c", "valkey-cli -p 6379 ping | grep -q PONG"]
+            initialDelaySeconds: 5
+            periodSeconds: 5
+            timeoutSeconds: 3
+          livenessProbe:
+            exec:
+              command: ["sh", "-c", "valkey-cli -p 6379 ping | grep -q PONG"]
+            # 起動時にフェイルオーバーを待つことがあるので余裕を持たせる
+            initialDelaySeconds: 90
+            periodSeconds: 10
+            timeoutSeconds: 3
+            failureThreshold: 3
           resources:
-            requests:
-              cpu: 100m
-              memory: 128Mi
-            limits:
-              cpu: 250m
-              memory: 256Mi
+            {{- toYaml .Values.valkey.resources | nindent 12 }}
           volumeMounts:
             - name: data
               mountPath: /data
-            - name: config
-              mountPath: /etc/valkey
+            - name: conf
+              mountPath: /conf
+            - name: scripts
+              mountPath: /scripts
+              readOnly: true
+        - name: sentinel
+          image: valkey/valkey:8.1.4-alpine
+          imagePullPolicy: IfNotPresent
+          {{- with .Values.securityContext }}
+          securityContext:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          command:
+            - sh
+            - /scripts/start-sentinel.sh
+          env:
+            - name: VALKEY_PASSWORD
+              value: {{ .Values.config.REDIS_PASSWORD | quote }}
+            - name: REDISCLI_AUTH
+              value: {{ .Values.config.REDIS_PASSWORD | quote }}
+          ports:
+            - name: sentinel
+              containerPort: 26379
+              protocol: TCP
+          readinessProbe:
+            exec:
+              command: ["sh", "-c", "valkey-cli -p 26379 ping | grep -q PONG"]
+            initialDelaySeconds: 5
+            periodSeconds: 5
+            timeoutSeconds: 3
+          livenessProbe:
+            exec:
+              command: ["sh", "-c", "valkey-cli -p 26379 ping | grep -q PONG"]
+            initialDelaySeconds: 90
+            periodSeconds: 10
+            timeoutSeconds: 3
+            failureThreshold: 3
+          resources:
+            {{- toYaml .Values.valkey.sentinel.resources | nindent 12 }}
+          volumeMounts:
+            - name: conf
+              mountPath: /conf
+            - name: scripts
+              mountPath: /scripts
               readOnly: true
       volumes:
+        {{- if not .Values.valkey.persistence.enabled }}
         - name: data
           emptyDir: {}
-        - name: config
+        {{- end }}
+        # 起動スクリプトが設定ファイルを生成する。sentinelは実行中に自分の設定ファイルを書き換える
+        - name: conf
+          emptyDir: {}
+        - name: scripts
           configMap:
-            name: {{ include "dify.fullname" . }}-valkey-config
+            name: {{ $name }}-scripts
+  {{- if .Values.valkey.persistence.enabled }}
+  volumeClaimTemplates:
+    - metadata:
+        name: data
+      spec:
+        accessModes:
+          - ReadWriteOnce
+        storageClassName: {{ .Values.valkey.persistence.storageClass }}
+        resources:
+          requests:
+            storage: {{ .Values.valkey.persistence.size }}
+  {{- end }}
 {{- end }}
-

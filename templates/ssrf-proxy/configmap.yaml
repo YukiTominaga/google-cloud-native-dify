@@ -8,5 +8,7 @@ metadata:
 data:
   squid.conf.template: |
 {{ .Files.Get "files/ssrf-proxy/squid.conf.template" | indent 4 }}
+  squid-common.conf.template: |
+{{ .Files.Get "files/ssrf-proxy/squid-common.conf.template" | indent 4 }}
   docker-entrypoint.sh: |
 {{ .Files.Get "files/ssrf-proxy/docker-entrypoint.sh" | indent 4 }}

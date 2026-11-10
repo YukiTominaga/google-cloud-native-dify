@@ -1,15 +1,138 @@
 {{- if .Values.valkey.enabled }}
+{{- $name := printf "%s-valkey" (include "dify.fullname" .) }}
 apiVersion: v1
 kind: ConfigMap
 metadata:
-  name: {{ include "dify.fullname" . }}-valkey-config
+  name: {{ $name }}-scripts
+  namespace: {{ .Release.Namespace }}
   labels:
     {{- include "dify.labels" . | nindent 4 }}
     app.kubernetes.io/component: valkey
 data:
-  valkey.conf: |
-    # ユーザー名とパスワード設定
-    requirepass {{ .Values.config.REDIS_PASSWORD }}
-    user default on >{{ .Values.config.REDIS_PASSWORD }} ~* &* +@all
-{{- end }}
+  common.sh: |
+    # valkey / sentinel の両コンテナから読み込む共通処理
+    STS_NAME="{{ $name }}"
+    DOMAIN="{{ $name }}-headless.{{ .Release.Namespace }}.svc.cluster.local"
+    REPLICAS={{ .Values.valkey.replicas }}
+    MASTER_NAME="{{ .Values.config.REDIS_SENTINEL_SERVICE_NAME }}"
+    SELF="${HOSTNAME}.${DOMAIN}"
+    POD0="${STS_NAME}-0.${DOMAIN}"
 
+    # 自分以外のPodのsentinelに現在のmasterを問い合わせる
+    # 誰にも聞けなければ何も出力しない
+    discover_master() {
+      i=0
+      while [ "$i" -lt "$REPLICAS" ]; do
+        peer="${STS_NAME}-${i}.${DOMAIN}"
+        if [ "$peer" != "$SELF" ]; then
+          m=$(timeout 3 valkey-cli -h "$peer" -p 26379 sentinel get-master-addr-by-name "$MASTER_NAME" 2>/dev/null | head -n 1)
+          case "$m" in
+            "${STS_NAME}-"*) echo "$m"; return 0 ;;
+          esac
+        fi
+        i=$((i + 1))
+      done
+      return 0
+    }
+
+    # 自分以外のPodのsentinelにフェイルオーバーを依頼する
+    request_failover() {
+      i=0
+      while [ "$i" -lt "$REPLICAS" ]; do
+        peer="${STS_NAME}-${i}.${DOMAIN}"
+        if [ "$peer" != "$SELF" ]; then
+          timeout 3 valkey-cli -h "$peer" -p 26379 sentinel failover "$MASTER_NAME" >/dev/null 2>&1 && return 0
+        fi
+        i=$((i + 1))
+      done
+      return 0
+    }
+
+  start-valkey.sh: |
+    #!/bin/sh
+    set -eu
+    . /scripts/common.sh
+
+    # sentinelがまだ自分をmasterとみなしている間に、古い(または空の)データで起動すると、
+    # レプリカ側の新しいデータを上書きしてしまう
+    # 他のレプリカへフェイルオーバーさせてから、レプリカとして参加する
+    master=""
+    attempt=0
+    while [ "$attempt" -lt 12 ]; do
+      master=$(discover_master)
+      if [ "$master" != "$SELF" ]; then
+        break
+      fi
+      echo "sentinel still reports this pod as master, requesting failover"
+      request_failover
+      sleep 5
+      attempt=$((attempt + 1))
+    done
+
+    if [ -z "$master" ] && [ "$SELF" != "$POD0" ]; then
+      # sentinelに到達できない = 初回構築。Pod 0をmasterにする
+      master="$POD0"
+    fi
+
+    {
+      echo "port 6379"
+      echo "dir /data"
+      {{- if .Values.valkey.persistence.enabled }}
+      # 書き込みを逐次ディスクへ記録し、再起動後に復元できるようにする
+      echo "appendonly yes"
+      {{- end }}
+      echo "requirepass \"${VALKEY_PASSWORD}\""
+      echo "masterauth \"${VALKEY_PASSWORD}\""
+      echo "replica-announce-ip ${SELF}"
+      echo "replica-announce-port 6379"
+      if [ -n "$master" ] && [ "$master" != "$SELF" ]; then
+        echo "replicaof ${master} 6379"
+      fi
+    } > /conf/valkey.conf
+
+    if [ -n "$master" ] && [ "$master" != "$SELF" ]; then
+      echo "starting as replica of ${master}"
+    else
+      echo "starting as master"
+    fi
+    exec valkey-server /conf/valkey.conf
+
+  start-sentinel.sh: |
+    #!/bin/sh
+    set -eu
+    . /scripts/common.sh
+
+    master=$(discover_master)
+    if [ -z "$master" ]; then
+      master="$POD0"
+    fi
+
+    # sentinelは起動時にmasterのホスト名を解決できないと終了するので、応答するまで待つ
+    until timeout 3 valkey-cli -h "$master" -p 6379 ping 2>/dev/null | grep -q PONG; do
+      echo "waiting for ${master}"
+      sleep 2
+    done
+
+    # Podが作り直されても同じsentinelとして認識されるように、IDをPod名から決める
+    myid=$(printf '%s' "$HOSTNAME" | sha1sum | cut -c 1-40)
+
+    {
+      echo "port 26379"
+      echo "dir /tmp"
+      echo "requirepass \"${VALKEY_PASSWORD}\""
+      echo "sentinel sentinel-pass \"${VALKEY_PASSWORD}\""
+      echo "sentinel resolve-hostnames yes"
+      echo "sentinel announce-hostnames yes"
+      echo "sentinel announce-ip ${SELF}"
+      echo "sentinel announce-port 26379"
+      echo "sentinel myid ${myid}"
+      echo "sentinel monitor ${MASTER_NAME} ${master} 6379 {{ add (div (int .Values.valkey.replicas) 2) 1 }}"
+      echo "sentinel auth-pass ${MASTER_NAME} \"${VALKEY_PASSWORD}\""
+      echo "sentinel down-after-milliseconds ${MASTER_NAME} {{ .Values.valkey.sentinel.downAfterMilliseconds }}"
+      echo "sentinel failover-timeout ${MASTER_NAME} {{ .Values.valkey.sentinel.failoverTimeout }}"
+      echo "sentinel parallel-syncs ${MASTER_NAME} 1"
+    } > /conf/sentinel.conf
+
+    echo "monitoring ${master}"
+    exec valkey-sentinel /conf/sentinel.conf
+{{- end }}

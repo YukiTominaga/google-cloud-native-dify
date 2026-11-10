@@ -62,11 +62,3 @@ spec:
         - name: HTTPS_PROXY
           value: "http://ssrf-proxy:{{ .Values.ssrf_proxy.service.httpPort }}"
         {{- end }}
-      # volumes:
-      # - name: sandbox-storage
-      #   {{- if .Values.sandbox.persistence.enabled }}
-      #   persistentVolumeClaim:
-      #     claimName: {{ include "dify.fullname" . }}-sandbox-pvc
-      #   {{- else }}
-      #   emptyDir: {}
-      #   {{- end }}

@@ -38,7 +38,7 @@ spec:
             app.kubernetes.io/component: api
       initContainers:
       - name: cloud-sql-proxy
-        image: gcr.io/cloud-sql-connectors/cloud-sql-proxy:2
+        image: "{{ .Values.cloudSqlProxy.image.repository }}:{{ .Values.cloudSqlProxy.image.tag }}"
         restartPolicy: Always
         command:
         - "/cloud-sql-proxy"
@@ -64,6 +64,8 @@ spec:
           runAsNonRoot: true
         resources:
           {{- toYaml .Values.api.resources | nindent 10 }}
+        startupProbe:
+          {{- toYaml .Values.api.startupProbe | nindent 10 }}
         livenessProbe:
           {{- toYaml .Values.api.livenessProbe | nindent 10 }}
         readinessProbe:

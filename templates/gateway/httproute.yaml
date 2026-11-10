@@ -53,28 +53,38 @@ spec:
   - matches:
     - path:
         type: PathPrefix
-        value: /console
-    backendRefs:
-    - name: {{ include "dify.fullname" . }}-api
-      kind: Service
-      port: {{ .Values.api.service.port }}
-  - matches:
-    - path:
-        type: PathPrefix
-        value: /inner_api
-    backendRefs:
-    - name: {{ include "dify.fullname" . }}-api
-      kind: Service
-      port: {{ .Values.api.service.port }}
-  - matches:
-    - path:
-        type: PathPrefix
-        value: /health
+        value: /mcp
     backendRefs:
     - name: {{ include "dify.fullname" . }}-api
       kind: Service
       port: {{ .Values.api.service.port }}
       weight: 1
+  - matches:
+    - path:
+        type: PathPrefix
+        value: /triggers
+    backendRefs:
+    - name: {{ include "dify.fullname" . }}-api
+      kind: Service
+      port: {{ .Values.api.service.port }}
+      weight: 1
+  - matches:
+    - path:
+        type: PathPrefix
+        value: /callbacks/human-input/v2/im
+    backendRefs:
+    - name: {{ include "dify.fullname" . }}-api
+      kind: Service
+      port: {{ .Values.api.service.port }}
+      weight: 1
+  - matches:
+    - path:
+        type: PathPrefix
+        value: /console/api
+    backendRefs:
+    - name: {{ include "dify.fullname" . }}-api
+      kind: Service
+      port: {{ .Values.api.service.port }}
   - matches:
     - path:
         type: PathPrefix

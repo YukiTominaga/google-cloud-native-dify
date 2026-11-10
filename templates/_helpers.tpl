@@ -77,9 +77,7 @@ Host name for the gateway
 Common environment variables
 */}}
 {{- define "dify.commonEnvs" -}}
-- name: EDITION
-  value: {{ .Values.global.edition | quote }}
-{{- range tuple "CONSOLE_API_URL" "CONSOLE_WEB_URL" "SERVICE_API_URL" "APP_API_URL" "APP_WEB_URL" "FILES_URL" }}
+{{- range tuple "CONSOLE_API_URL" "CONSOLE_WEB_URL" "SERVICE_API_URL" "APP_API_URL" "APP_WEB_URL" "FILES_URL" "TRIGGER_URL" }}
 - name: {{ . }}
   value: {{ printf "https://%s" (include "dify.hostName" $ | replace "\"" "") }}
 {{- end }}
